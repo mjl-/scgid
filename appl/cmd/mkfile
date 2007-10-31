@@ -1,0 +1,23 @@
+<../../mkconfig
+
+DIRS=\
+
+TARG=\
+	scgid.dis\
+
+SYSMODULES=\
+	arg.m\
+	bufio.m\
+	daytime.m\
+	dict.m\
+	draw.m\
+	env.m\
+	wait.m\
+	sh.m\
+	string.m\
+	sys.m\
+
+
+DISBIN=$ROOT/dis
+
+<$ROOT/mkfiles/mkdis
