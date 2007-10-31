@@ -4,6 +4,7 @@ DIRS=\
 
 TARG=\
 	scgid.dis\
+	testscgi.dis\
 
 SYSMODULES=\
 	arg.m\
