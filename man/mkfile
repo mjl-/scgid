@@ -1,8 +1,8 @@
 <../mkconfig
 
-MODS=
+MAN=
 
-<mkmod
+<mkman
 
 nuke:QV:
 	
