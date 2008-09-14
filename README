@@ -1,47 +1,34 @@
-scgi daemon.
+# status
+
+has been in production use for quite some time.
+
+
+# intro
+
+scgid is a daemon.  it listens for tcp connections (usually from a
+webserver), and handles scgi requests by calling a program and returning
+its output.
+
+
+# install & run
 
 to compile, make sure there is a mkconfig in this directory.  you bind
 or symlink the mkconfig from your inferno install into this directory.
 next "mk" and possibly "mk install".
 
-usage: scgid [-dv] [-n nthreads] file
-
--d turns on debug output
--v turns on verbose output (exceptions when thrown, timing statistics)
--n is the number of threads to keep around
-file is the config file.  leading whitespace of lines is stripped.
-empty lines are ignored, as are lines starting with a #.  lines contains
-at least two fields:  addr and modpath.  the other tokens are used
-as arguments for calling modpath.  addr is the address scgid will
-listen on.  modpath should be a dis module and implement a Scgicmd,
-which has the following definition:
-
-Scgicmd: module
-{
-        modinit:        fn(): string;
-        init:   fn(nil: ref Draw->Context, args: list of string);
-};
-
-modinit gets called when the module is first loaded.  a single module
-instance is used for all requests, so a module should not keep state.
-init is called to handle a requests, just like a normal program.
-typically, the modinit loads modules needed by the module and the init
-functions works as normal.
-
-scgid keeps checks whether modules have changed before using them.
-if they have, they are loaded anew.  this allows for easy testing of a
-module without having to restart the scgid all the time.
-
-see doc/scgid.conf for a sample config file.
+see the manual page for usage information.
 
 
-this code is available from the hg repository:
+# latest version
 
-	hg clone static-http://www.ueber.net/who/mjl/hg/scgid/
+the latest version can be found on
 
-licence
-	all files in this repository package are in the public domain.
+	http://www.ueber.net/code/r/scgid
 
-contact
-	when you find bugs or have other suggestions, please e-mail me
-	at mechiel@xs4all.nl or mechiel@ueber.net.
+
+# author & licence
+
+when you find bugs or have other suggestions, please e-mail me
+at mechiel@xs4all.nl or mechiel@ueber.net.
+
+all files in this repository package are in the public domain.

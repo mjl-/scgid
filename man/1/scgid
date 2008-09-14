@@ -1,0 +1,73 @@
+.TH SCGID 1
+.SH NAME
+scgid \- server handling scgi requests
+.SH SYNOPSIS
+.B scgid
+[
+.B -dv
+] [
+.B -n
+.I nthreads
+]
+.I file
+.SH DESCRIPTION
+.B Scgid
+is a program serving scgi requests (as issued by web servers) on tcp connections.  Multiple tcp addresses can be specified in
+.IR file ,
+the configuration file.  For each address, a program to handle the requests must be specified.  At startup, all addresses are announced to.  On the first use of a connection/program, its module (dis code) is loaded.  Programs must adhere to the same module declaration as shell commands.
+
+.SS Options
+.TP
+.B -d
+Print debugging output.
+.TP
+.B -v
+Be verbose, this prints exceptions when thrown, and timing statistics.
+.TP
+.B " -n nthreads"
+Set the number of threads to keep around.
+
+.SS Config file
+.I File
+is the config file.  Leading whitespace of lines is stripped.
+Empty lines are ignored, as are lines starting with a ``#''.  Lines contain at least two fields:
+.I addr
+and
+.IR modpath .
+The other tokens are passed to the program as arguments.
+.I Addr
+is the address
+.B scgid
+will
+listen on.
+.I Modpath
+should be a normal dis program.
+
+A single module
+instance is used for all requests, so a module should not keep state.
+Function
+.I init
+is called to handle a requests, just as the shell does for any other program.
+Typically,
+.I init
+checks if modules have been loaded yet and does so if not.  This prevents
+reloading modules for each request.
+
+.B Scgid
+checks whether modules have changed before using them.  If they
+have, they are loaded anew.  This allows for easy testing of a module
+without having to restart the scgid all the time, while not having to
+reload the module all the time.  Note that library modules used by the
+called program will also not be updated.
+.SH EXAMPLE
+To let
+.B scgid
+serve the program testscgi on localhost, port 4006:
+.EX
+	; cat doc/scgid.conf 
+	# sample scgid.conf
+	net!localhost!4006 /dis/testscgi.dis testscgi
+	; scgid scgid.conf
+.EE
+.SH SOURCE
+.B appl/cmd/scgid.b
