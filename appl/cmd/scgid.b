@@ -38,7 +38,6 @@ Scgi: module
 
 Scgicmd: module
 {
-	modinit:	fn(): string;
 	init:	fn(nil: ref Draw->Context, args: list of string);
 };
 
@@ -101,12 +100,6 @@ init(nil: ref Draw->Context, args: list of string)
 			warn(sprint("loading command %s: %r", cmd.modpath));
 			continue;
 		}
-		loaderr := cmd.mod->modinit();
-		if(loaderr != nil) {
-			warn(sprint("modinit on loaded command %s: %s", cmd.modpath, loaderr));
-			cmd.mod = nil;
-			continue;
-		}
 		cmd.mtime = mtime(cmd.modpath);
 		debug(sprint("set modpath=%s i=%d", cmd.modpath, i));
 		spawn listen(cmd.addr, i, netchan);
@@ -122,14 +115,8 @@ init(nil: ref Draw->Context, args: list of string)
 			if(newmod == nil) {
 				warn(sprint("loading new version of module %s: %r", cmd.modpath));
 			} else {
-				loaderr := newmod->modinit();
-				if(loaderr != nil) {
-					warn(sprint("modinit on fresh command %s: %s", cmd.modpath, loaderr));
-				} else {
-					cmd.mod = newmod;
-					cmd.mtime = newmtime;
-					debug("have new version of module: "+cmd.modpath);
-				}
+				cmd.mod = newmod;
+				cmd.mtime = newmtime;
 			}
 		}
 		debug("to workchan modpath: "+cmd.modpath);
