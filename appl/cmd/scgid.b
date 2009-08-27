@@ -1,43 +1,38 @@
 implement Scgi;
 
 include "sys.m";
+	sys: Sys;
+	sprint: import sys;
 include "draw.m";
-include "env.m";
 include "arg.m";
-include "wait.m";
 include "bufio.m";
+	bufio: Bufio;
+	Iobuf: import bufio;
 include "string.m";
-include "dict.m";
+	str: String;
+include "lists.m";
+	lists: Lists;
+include "env.m";
+	env: Env;
 include "daytime.m";
+	daytime: Daytime;
+include "dict.m";
+	dict: Dictionary;
+	Dict: import dict;
+include "wait.m";
+	wait: Wait;
 include "sh.m";
 
-sys: Sys;
-env: Env;
-wait: Wait;
-dict: Dictionary;
-bufio: Bufio;
-Iobuf: import bufio;
-str: String;
-daytime: Daytime;
-
-Dict: import dict;
-Connection: import sys;
-sprint, print: import sys;
-FD: import sys;
+Scgi: module {
+	init:	fn(nil: ref Draw->Context, args: list of string);
+};
 
 
 nthreads := 3;
 dflag := 0;
 vflag := 0;
 
-
-Scgi: module
-{
-	init:	fn(nil: ref Draw->Context, args: list of string);
-};
-
-Scgicmd: module
-{
+Scgicmd: module {
 	init:	fn(nil: ref Draw->Context, args: list of string);
 };
 
@@ -49,50 +44,44 @@ Cmd: adt {
 };
 
 
-usage()
-{
-	sys->fprint(sys->fildes(2), "usage: scgid [-dv] [-n nthreads] file\n");
-	raise "fail:usage";
-}
-
 init(nil: ref Draw->Context, args: list of string)
 {
 	sys = load Sys Sys->PATH;
-	dict = load Dictionary Dictionary->PATH;
-	env = load Env Env->PATH;
+	arg := load Arg Arg->PATH;
 	bufio = load Bufio Bufio->PATH;
 	str = load String String->PATH;
-	arg := load Arg Arg->PATH;
-	wait = load Wait Wait->PATH;
+	lists = load Lists Lists->PATH;
+	env = load Env Env->PATH;
 	daytime = load Daytime Daytime->PATH;
-
+	dict = load Dictionary Dictionary->PATH;
+	wait = load Wait Wait->PATH;
 	wait->init();
 
 	arg->init(args);
+	arg->setusage(arg->progname()+" [-dv] -[n nthreads] file\n");
 	while((c := arg->opt()) != 0)
 		case c {
 		'd' =>	dflag++;
 		'n' =>	nthreads = int arg->earg();
 		'v' =>	vflag++;
-		* =>	usage();
+		* =>	arg->usage();
 		}
 	args = arg->argv();
-
 	if(len args != 1)
-		usage();
+		arg->usage();
 
 	# read config file, with: address modpath argv
 	path := hd args;
 	(cmds, err) := readconfig(path);
 	if(err != nil)
-		error("reading config: "+err);
+		fail("reading config: "+err);
 
 	# reaper, refills the thread pool
-	workchan := chan[2*nthreads] of (ref FD, Scgicmd, list of string);
+	workchan := chan[2*nthreads] of (ref Sys->FD, Scgicmd, list of string);
 	spawn reaper(workchan);
 
 	# load modules from config file and spawn listeners
-	netchan := chan[2*nthreads] of (ref FD, int);
+	netchan := chan[2*nthreads] of (ref Sys->FD, int);
 	for(i := 0; i < len cmds; i++) {
 		cmd := cmds[i];
 		cmd.mod = load Scgicmd cmd.modpath;
@@ -101,7 +90,7 @@ init(nil: ref Draw->Context, args: list of string)
 			continue;
 		}
 		cmd.mtime = mtime(cmd.modpath);
-		debug(sprint("set modpath=%s i=%d", cmd.modpath, i));
+		say(sprint("set modpath=%s i=%d", cmd.modpath, i));
 		spawn listen(cmd.addr, i, netchan);
 	}
 
@@ -119,7 +108,7 @@ init(nil: ref Draw->Context, args: list of string)
 				cmd.mtime = newmtime;
 			}
 		}
-		debug("to workchan modpath: "+cmd.modpath);
+		say("to workchan modpath: "+cmd.modpath);
 		if(cmd.mod == nil)
 			warn(sprint("no module loaded for i=%d modpath=%s", cmdi, cmd.modpath));
 		else
@@ -157,10 +146,10 @@ readconfig(path: string): (array of ref Cmd, string)
 			return (nil, sprint("invalid line, too few tokens: %q", line));
 		cmds = ref Cmd(hd tokens, hd tl tokens, nil, tl tl tokens, 0)::cmds;
 	}
-	return (l2a(rev(cmds)), nil);
+	return (l2a(lists->reverse(cmds)), nil);
 }
 
-reaper(workchan: chan of (ref FD, Scgicmd, list of string))
+reaper(workchan: chan of (ref Sys->FD, Scgicmd, list of string))
 {
 	name := sprint("/prog/%d/wait", sys->pctl(0, nil));
 	wf := sys->open(name, sys->OREAD);
@@ -174,7 +163,7 @@ reaper(workchan: chan of (ref FD, Scgicmd, list of string))
 	}
 }
 
-worker(c: chan of (ref FD, Scgicmd, list of string))
+worker(c: chan of (ref Sys->FD, Scgicmd, list of string))
 {
 	(fd, mod, argv) := <- c;
 	{
@@ -186,22 +175,22 @@ worker(c: chan of (ref FD, Scgicmd, list of string))
 	}
 }
 
-execute(fd: ref FD, mod: Scgicmd, argv: list of string)
+execute(fd: ref Sys->FD, mod: Scgicmd, argv: list of string)
 {
 	t1, t2, t3: int;
 
 	if(vflag > 1)
 		t1 = sys->millisec();
 
-	(err, ns) := readnetstr(fd);
+	(ns, err) := readnetstr(fd);
 	if(err != nil) {
-		debug("readnetstr: "+err);
+		say("readnetstr: "+err);
 		return;
 	}
 	d: ref Dict;
-	(err, d) = readheaders(ns);
+	(d, err) = readheaders(ns);
 	if(err != nil) {
-		debug("readheaders: "+err);
+		say("readheaders: "+err);
 		return;
 	}
 
@@ -226,9 +215,9 @@ execute(fd: ref FD, mod: Scgicmd, argv: list of string)
 	}
 }
 
-listen(addr: string, cmdi: int, netchan: chan of (ref FD, int))
+listen(addr: string, cmdi: int, netchan: chan of (ref Sys->FD, int))
 {
-	conn: Connection;
+	conn: Sys->Connection;
 	for(;;) {
 		aok: int;
 		(aok, conn) = sys->announce(addr);
@@ -252,13 +241,13 @@ listen(addr: string, cmdi: int, netchan: chan of (ref FD, int))
 			warn(sprint("open data file: %r"));
 			continue;
 		}
-		debug(sprint("listen: have connection addr=%s cmdi=%d", addr, cmdi));
+		say(sprint("listen: have connection addr=%s cmdi=%d", addr, cmdi));
 		netchan <-= (dfd, cmdi);
 		dfd = nil;
 	}
 }
 
-readnetstr(fd: ref FD) : (string, array of byte)
+readnetstr(fd: ref Sys->FD): (array of byte, string)
 {
 	n := 0;
 	for(;;) {
@@ -270,20 +259,20 @@ readnetstr(fd: ref FD) : (string, array of byte)
 			continue;
 		}
 		if(c != ':')
-			return ("missing semicolon", nil);
+			return (nil, "missing semicolon");
 		break;
 	}
 	a := array[n+1] of byte;
 	have := sys->read(fd, a, n+1);
 	if(have != n+1)
-		return ("read too few bytes", nil);
+		return (nil, "read too few bytes");
 	if(a[n] != byte ',')
-		return ("missing closing comma", nil);
-	return (nil, a[:n]);
+		return (nil, "missing closing comma");
+	return (a[:n], nil);
 }
 
 
-writenetstr(a: array of byte) : array of byte
+writenetstr(a: array of byte): array of byte
 {
 	alen := sys->aprint("%d:", len a);
 	r := array[len alen + len a + len array of byte ","] of byte;
@@ -297,7 +286,7 @@ writenetstr(a: array of byte) : array of byte
 }
 
 
-findchar(a: array of byte, b: byte) : int
+findchar(a: array of byte, b: byte): int
 {
 	for(i := 0; i < len a; i++)
 		if(a[i] == b)
@@ -306,7 +295,7 @@ findchar(a: array of byte, b: byte) : int
 }
 
 
-readheaders(a: array of byte) : (string, ref Dict)
+readheaders(a: array of byte): (ref Dict, string)
 {
 	l: list of string;
 	while(len a > 0) {
@@ -316,7 +305,7 @@ readheaders(a: array of byte) : (string, ref Dict)
 	}
 
 	if(len l % 2 != 0)
-		return ("odd number of values", nil);
+		return (nil, "odd number of values");
 
 	d := ref Dict;
 	while(l != nil) {
@@ -326,7 +315,7 @@ readheaders(a: array of byte) : (string, ref Dict)
 		l = tl l;
 		d.add((k, v));
 	}
-	return (nil, d);
+	return (d, nil);
 }
 
 
@@ -340,7 +329,7 @@ skip(l: list of string, bad: string): list of string
 }
 
 
-writeheaders(d: ref Dict) : array of byte
+writeheaders(d: ref Dict): array of byte
 {
 	rlen := 0;
 	for(keys := d.keys(); keys != nil; keys = tl keys) {
@@ -367,31 +356,6 @@ writeheaders(d: ref Dict) : array of byte
 	return r;
 }
 
-warn(s: string)
-{
-	sys->fprint(sys->fildes(2), "%d %s\n", daytime->now(), s);
-}
-
-error(s: string)
-{
-	warn(s);
-	raise sprint("fail:%s", s);
-}
-
-debug(s: string)
-{
-	if(dflag)
-		sys->fprint(sys->fildes(2), "%d %s\n", daytime->now(), s);
-}
-
-rev[t](l: list of t): list of t
-{
-	r: list of t;
-	for(; l != nil; l = tl l)
-		r = hd l :: r;
-	return r;
-}
-
 l2a[T](l: list of T): array of T
 {
 	a := array[len l] of T;
@@ -399,4 +363,21 @@ l2a[T](l: list of T): array of T
 	for(; l != nil; l = tl l)
 		a[i++] = hd l;
 	return a;
+}
+
+warn(s: string)
+{
+	sys->fprint(sys->fildes(2), "%d %s\n", daytime->now(), s);
+}
+
+say(s: string)
+{
+	if(dflag)
+		warn(s);
+}
+
+fail(s: string)
+{
+	warn(s);
+	raise sprint("fail:%s", s);
 }
