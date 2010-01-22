@@ -12,9 +12,8 @@ its output.
 
 # install & run
 
-to compile, make sure there is a mkconfig in this directory.  you bind
-or symlink the mkconfig from your inferno install into this directory.
-next "mk" and possibly "mk install".
+make sure you have $ROOT set, now run "mk" to compile and "mk
+install" to install the files.
 
 when building from within inferno, insert SYSHOST=Inferno and ROOT=
 in the mk invocations to override the values in the mkconfig.
